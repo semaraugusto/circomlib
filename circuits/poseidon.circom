@@ -62,17 +62,17 @@ template Poseidon(nInputs) {
     var N_ROUNDS_P[16] = [56, 57, 56, 60, 60, 63, 64, 63, 60, 66, 60, 65, 70, 60, 64, 68];
     var nRoundsF = 8;
     var nRoundsP = N_ROUNDS_P[t-2];
-    var C[t*(nRoundsF + nRoundsP)] = POSEIDON_C(t);
+    var C[nRoundsF * t + nRoundsP + 1] = POSEIDON_C(t);
     var S[(2*t-1) * nRoundsP] = POSEIDON_S(t);
     var M[t][t] = POSEIDON_M(t);
     var P[t][t] = POSEIDON_P(t);
 
-    component ark[nRoundsF];
+    component ark[nRoundsF+1];
     component sigmaF[nRoundsF - 1][t];
     component sigmaP[nRoundsP];
     component partialR[nRoundsP];
-    component mix[nRoundsF - 1];
-    component pix;
+    component mix[nRoundsF];
+    /* component pix; */
     component sigmaFf[t];
 
     var k;
@@ -96,8 +96,9 @@ template Poseidon(nInputs) {
     /*     ); */
     /* } */
     var r;
-    for(r=0; r < nRoundsF/2; r++) {
-        ark[r+1] = Ark(t, C, r*t);
+    var round_counter = 0;
+    for(r=0; r < nRoundsF/2-1; r++) {
+        ark[r+1] = Ark(t, C, (r+1)*t);
         for (var j=0; j<t; j++) {
             if (r==0) {
                 ark[r+1].in[j] <== ark[r].out[j];
@@ -112,70 +113,77 @@ template Poseidon(nInputs) {
             sigmaF[r][j].in <== ark[r+1].out[j];
             mix[r].in[j] <== sigmaF[r][j].out;
         }
+        round_counter++;
     }
 
-
     // begin
+    /* state = state.map(a => pow5(a)); */
+
     /* state = state.map(a => pow5(a)); */
     /* state = state.map((a, i) => F.add(a, C[(nRoundsF/2-1 +1)* t +i])); */
     /* state = state.map((_, i) => */
     /*     state.reduce((acc, a, j) => F.add(acc, F.mul(P[j][i], a)), F.zero) */
-    /* ); */
-
+    /*); */
+    /* for (var j=0; j<t; j++) { */
+    /*     sigmaFf[j] = Sigma(); */
+    /*     sigmaFf[j].in <== mix[r-1].out[j]; */
+    /* } */
+    /*  */
+    /* ark[r+1] = Ark(t, C, t*(nRoundsF/2)); // Should be nRoundsF/2 */
+    /*  */
+    /* for (var j=0; j<t; j++) { */
+    /*     ark[r+1].in[j] <== sigmaFf[j].out; */
+    /* } */
+    /*  */
+    /* pix = Mix(t, P); */
+    /* for (var j=0; j<t; j++) { */
+    /*     pix.in[j] <== ark[r+1].out[j]; */
+    /* } */
+    /*  */
+    /* for (var j=0; j<t; j++) { */ 
+    /*     sigmaF[r][j] = Sigma(); */ 
+    /*     sigmaF[r][j].in <== ark[r].out[j]; */ 
+    /*     pix[r].in[j] <== sigmaF[r][j].out; */ 
+    /* } */
+    /* for (var j=0; j<t; j++) { */ 
+    /*     ark[r].in[j] = mix[r-1].out[j]; */ 
+    /* } */
+    mix[r] = Mix(t, P);
+    ark[r+1] = Ark(t, C, t*(nRoundsF/2)); // Should be nRoundsF/2
     for (var j=0; j<t; j++) {
         sigmaFf[j] = Sigma();
         sigmaFf[j].in <== mix[r-1].out[j];
-    }
-
-    ark[r+1] = Ark(t, C, nRoundsF/2+1); // Should be nRoundsF/2
-
-    for (var j=0; j<t; j++) {
         ark[r+1].in[j] <== sigmaFf[j].out;
     }
-
-    pix = Mix(t, P);
     for (var j=0; j<t; j++) {
-        pix.in[j] <== ark[r+1].out[j];
+        mix[r].in[j] <== ark[r+1].out[j];
     }
-
-    /* for (var j=0; j<t; j++) { */
-    /*     sigmaF[r][j] = Sigma(); */
-    /*     sigmaF[r][j].in <== ark[r].out[j]; */
-    /*     pix[r].in[j] <== sigmaF[r][j].out; */
-    /* } */
-    /* for (var j=0; j<t; j++) { */
-    /*     ark[r].in[j] = mix[r-1].out[j]; */
-    /* } */
-    /* for (var j=0; j<t; j++) { */
-    /*     sigmaF[r][j] = Sigma(); */
-    /*     sigmaF[r][j].in <== ark[r].out[j]; */
-    /*     mix[r].in[j] <== sigmaF[r][j].out; */
-    /* } */
-
-    // begin
-    /* for (let r = 0; r < nRoundsP; r++) { */
-    /*     state[0] = pow5(state[0]); */
-    /*     state[0] = F.add(state[0], C[(nRoundsF/2 +1)*t + r]); */
-    /*     const s0 = state.reduce((acc, a, j) => { */
-    /*         return F.add(acc, F.mul(S[(t*2-1)*r+j], a)); */
-    /*     }, F.zero); */
-    /*     for (let k=1; k<t; k++) { */
-    /*         state[k] = F.add(state[k], F.mul(state[0], S[(t*2-1)*r+t+k-1]   )); */
-    /*     } */
-    /*     state[0] =s0; */
-
-    // First iteration is done outside of the loop in order to match inputs correctly in it
+    r++; round_counter++;
+    /* // begin */
+    /* /* for (let r = 0; r < nRoundsP; r++) { */
+    /* /*     state[0] = pow5(state[0]); */
+    /* /*     state[0] = F.add(state[0], C[(nRoundsF/2 +1)*t + r]); */
+    /* /*     const s0 = state.reduce((acc, a, j) => { */
+    /* /*         return F.add(acc, F.mul(S[(t*2-1)*r+j], a)); */
+    /* /*     }, F.zero); */
+    /* /*     for (let k=1; k<t; k++) { */
+    /* /*         state[k] = F.add(state[k], F.mul(state[0], S[(t*2-1)*r+t+k-1]   )); */
+    /* /*     } */
+    /* /*     state[0] =s0; */
+    /*  */
+    /* // First iteration is done outside of the loop in order to match inputs correctly in it */
     sigmaP[0] = Sigma();
-    sigmaP[0].in <== pix.out[0];
+    sigmaP[0].in <== mix[r-1].out[0];
 
     partialR[0] = PartialRound(t, S, r);
 
     partialR[0].in[0] <== sigmaP[0].out;
     for(var j=1; j<t; j++) {
-        partialR[0].in[j] <== pix.out[j];
+        partialR[0].in[j] <== mix[r-1].out[j];
     }
-
-    for(var p=1; p<nRoundsP; p++) {
+    round_counter++;
+    var p;
+    for(p=1; p<nRoundsP; p++) {
         sigmaP[p] = Sigma();
         sigmaP[p].in <== partialR[p-1].out[0];
 
@@ -185,48 +193,62 @@ template Poseidon(nInputs) {
         for(var j=1; j<t; j++) {
             partialR[p].in[j] <== partialR[p-1].out[j];
         }
-        r++; 
-    }
-    
-    // r == 0 
-    k = nRoundsF/2+1;
-
-    ark[k] = Ark(t, C, t*r);
-    for (var j=0; j<t; j++) {
-        ark[k].in[j] <== mix[k-1].out[j];
+        round_counter++;
     }
 
-    mix[k] = Mix(t, M);
-    for (var j=0; j<t; j++) {
-        sigmaF[k][j] = Sigma();
-        sigmaF[k][j].in <== ark[k].out[j];
-        mix[k].in[j] <== sigmaF[k][j].out;
-    }
-
-    for(r=1; r < nRoundsF/2-1; r++) {
-        k = r + nRoundsF/2+1;
-
-        ark[k] = Ark(t, C, t*r);
+    for(var f=0; f < nRoundsF/2-1; f++) {
+        var round_count = (nRoundsF/2+1)*t + nRoundsP + f*t;
+        ark[r+1] = Ark(t, C, round_count);
         for (var j=0; j<t; j++) {
-            ark[k].in[j] <== mix[k-1].out[j];
-        }
+            if (f==0) {
+                ark[r+1].in[j] <== partialR[p-1].in[j];
+            } else {
+                ark[r+1].in[j] <== mix[r-1].out[j];
+            }
+        } 
 
-        mix[k] = Mix(t, M);
+        mix[r] = Mix(t, M);
         for (var j=0; j<t; j++) {
-            sigmaF[k][j] = Sigma();
-            sigmaF[k][j].in <== ark[k].out[j];
-            mix[k].in[j] <== sigmaF[k][j].out;
+            sigmaF[r][j] = Sigma();
+            sigmaF[r][j].in <== ark[r+1].out[j];
+            mix[r].in[j] <== sigmaF[r][j].out;
         }
+        r++;
     }
-
-    for (var j=0; j<t; j++) {
-        k = r + nRoundsF/2;
-        mix[k] = Mix(t, M);
-        sigmaF[k][j] = Sigma();
-        sigmaF[k][j].in <== mix[k-1].out[j];
-        mix[k].in[j] <== sigmaF[k][j].out;
-    }
-    out <== mix[r].out[0];
+    out <== mix[r-1].out[0];
+    /*  */
+    /* // r == 0  */
+    /*  */
+    /* mix[k] = Mix(t, M); */
+    /* for (var j=0; j<t; j++) { */
+    /*     sigmaF[k][j] = Sigma(); */
+    /*     sigmaF[k][j].in <== ark[k].out[j]; */
+    /*     mix[k].in[j] <== sigmaF[k][j].out; */
+    /* } */
+    /*  */
+    /* for(r=1; r < nRoundsF/2-1; r++) { */
+    /*     k = r + nRoundsF/2+1; */
+    /*  */
+    /*     ark[k] = Ark(t, C, t*r); */
+    /*     for (var j=0; j<t; j++) { */
+    /*         ark[k].in[j] <== mix[k-1].out[j]; */
+    /*     } */
+    /*  */
+    /*     mix[k] = Mix(t, M); */
+    /*     for (var j=0; j<t; j++) { */
+    /*         sigmaF[k][j] = Sigma(); */
+    /*         sigmaF[k][j].in <== ark[k].out[j]; */
+    /*         mix[k].in[j] <== sigmaF[k][j].out; */
+    /*     } */
+    /* } */
+    /*  */
+    /* for (var j=0; j<t; j++) { */
+    /*     k = r + nRoundsF/2; */
+    /*     mix[k] = Mix(t, M); */
+    /*     sigmaF[k][j] = Sigma(); */
+    /*     sigmaF[k][j].in <== mix[k-1].out[j]; */
+    /*     mix[k].in[j] <== sigmaF[k][j].out; */
+    /* } */
 
     /* // old */
     /* for (var i=0; i<nRoundsF + nRoundsP - 1; i++) { */
